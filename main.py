@@ -1,7 +1,7 @@
 # original simulation written by https://github.com/tangbj and refactored by https://github.com/AnthonyChuah
 # the multiple-OT and highest-hp target selection logic
 
-# hateful strikes deal between 22-29k damage every 1.2 to 2s (average of 1.6s)
+# hateful strikes deal between 22-29k damage every 1.2s
 # this simulation will only consider how many times a healing team of 3 will let an offtank die
 # patchwerk will enrage during the last 5%, but we ignore that since tanks will save shield wall
 # does not take into account batching
@@ -13,87 +13,24 @@ PATCHWERK_MISS_CHANCE = 0.3
 AVERAGE_PLUS_HEAL = 1000
 AMPLIFY_MAGIC = True
 MAGIC_ATTUNEMENT = True
+
+# HOLY TALENTS
 POINTS_IN_IMPROVED_HEALING = 3
+POINTS_IN_SPIRITUAL_HEALING = 5
+POINTS_IN_SPIRITUAL_GUIDANCE = 5
+
 # assume there is some sort of variance between casts
 REACTION_TIME = 0.2
 HEALER_CRIT_CHANCE = 0.2
-TOTAL_PLUS_HEAL = AVERAGE_PLUS_HEAL + (150 if AMPLIFY_MAGIC else 0) + (75 if MAGIC_ATTUNEMENT else 0)
+
+# assume rough spirit score of 350
+TOTAL_PLUS_HEAL = AVERAGE_PLUS_HEAL + (150 if AMPLIFY_MAGIC else 0) + (75 if MAGIC_ATTUNEMENT else 0) + \
+    (350 * 0.25 * POINTS_IN_SPIRITUAL_GUIDANCE / 5)
 
 import argparse
 import heapq
 import random
-# import math
 
-"""
-# returns True if tank lives, False otherwise
-# if prehealing is set to true, healers will begin precasting 1s before the start of the fight
-def run_one_simulation(verbose=False, prehealing=False):
-    tick = 0 if(not prehealing) else -1
-    next_hateful_strike = 0
-    tank_health = OFFTANK_MAX_HEALTH
-    did_tank_live = True
-
-    # we assume only slow heals are casted, so spells are first-in, first-out
-    healing_queue = []
-    # key is healer index, value is tick
-    healers_next_cast = {
-        0: -1,
-        1: -1,
-        2: -1,
-    }
-
-    while tick < FIGHT_LENGTH:
-        if tick >= next_hateful_strike and tick > 0:
-            # we apply damage first before healing (if both damage and heals occur on the same 0.1s tick)
-
-            # test if patchwerk hits
-            if random.random() >= PATCHWERK_MISS_CHANCE:
-                damage = get_hateful_strike_damage()
-                tank_health = max(tank_health - damage, 0)
-            if verbose:
-                print('Hateful strike hits for {} on {:.1f}s; Health - {}/{}'.format(damage, tick, tank_health, OFFTANK_MAX_HEALTH))
-            if tank_health == 0:
-                did_tank_live = False
-            if verbose:
-                print('TANK DIES; WHY NO HEALS NOOBS')
-            return False
-        # patchwerk misses
-        else:
-            if verbose:
-                print('Patchwerk misses at {:.1f}s'.format(tick))
-                next_hateful_strike += get_next_hateful_strike()
-
-    # healing
-    for index, value in enumerate(healing_queue):
-        healer_index, heal_amount, time_heal_goes_off = value
-        if tick >= time_heal_goes_off:
-            new_tank_health = min(tank_health + heal_amount, OFFTANK_MAX_HEALTH)
-            actual_amount_healed = new_tank_health - tank_health
-            tank_health = new_tank_health
-        if verbose:
-            print('Healer {} healed Tank for {} at {:.1f}s; Health - {}/{}'.format(healer_index, actual_amount_healed, tick, tank_health, OFFTANK_MAX_HEALTH))
-        del healing_queue[index]
-
-    for k, v in healers_next_cast.items():
-        if tick >= v:
-            heal_amount, _, cast_time = get_heal('h4')
-            cast_time = round(cast_time + REACTION_TIME * random.random(), 1)
-            healing_queue.append((k, heal_amount, tick + cast_time))
-            healers_next_cast[k] = tick + cast_time
-            tick += 0.1
-
-    if verbose:
-        print('TANK SURVIVES')
-    return True
-
-# assume patchwerk will hit us every third hateful strike
-def get_next_hateful_strike():
-    seconds_later = 0
-    for _ in range(3):
-        seconds_later += (random.random() * (0.8) + 1.2)
-
-    return math.floor(seconds_later * 10) / 10
-"""
 
 def get_hateful_strike_damage():
     damage = random.random() * (29000 - 22000) + 22000
@@ -109,6 +46,8 @@ healing_spell_data = {
 def get_heal(spell):
     base_healing, mana_cost, cast_time = healing_spell_data.get(spell)
     mana_cost *= (1 - 0.05 * POINTS_IN_IMPROVED_HEALING)
+    # spirutal healing adds max of 10% to base heal
+    base_healing *= (1 + POINTS_IN_SPIRITUAL_HEALING / 5 * 0.1)
     total_healing = base_healing + 3 / 3.5 * TOTAL_PLUS_HEAL
     if random.random() <= HEALER_CRIT_CHANCE:
         total_healing *= 1.5
@@ -133,9 +72,11 @@ class Event:
             name = "Healer #{} Heal".format(self._entity)
         return "[Time {}] {}".format(time, name)
 
+# updated hateful strike to hit every 1.2s instead of random number from 1.2 to 2s
 def get_timetonext_hateful():
-    seconds_later = (random.random() * (0.8499) + 1.2)
-    return round(seconds_later, 1)
+    return 1.2
+    # seconds_later = (random.random() * (0.8499) + 1.2)
+#     return round(seconds_later, 1)
 
 def get_hateful_target(tanks_health):
     return tanks_health.index(max(tanks_health))
